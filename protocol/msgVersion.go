@@ -6,73 +6,79 @@ import (
 	"strings"
 )
 
-// TODO: separate files
-type NetworkAddress struct{}
-type VarString struct{}
-
-type msgVersion struct {
-	header  msgHeader
-	payload msgVersionPayload
+// MsgVersion = Message Version
+type MsgVersion struct {
+	Header  msgHeader
+	Payload msgVersionPayload
 }
 
 type msgVersionPayload struct {
-	version     int32
-	services    ServiceFlag
-	timestamp   Timestamp
-	addrTo      NetworkAddress
-	addrFrom    NetworkAddress
-	nonce       uint64
-	userAgent   VarString
-	startHeight int32
-	relay       bool
+	Version     int32
+	Services    ServiceFlags
+	Timestamp   timestamp
+	AddrYou     NetworkAddress
+	AddrMe      NetworkAddress
+	Nonce       uint64
+	UserAgent   varString
+	StartHeight int32
+	Relay       bool
 }
 
-func (m *msgVersion) pLoad() any {
-	return m.payload
+func (m *MsgVersion) pLoad() any {
+	return m.Payload
 }
 
-func (m *msgVersion) String() string {
+func (m *MsgVersion) String() string {
 	var b strings.Builder
 	fmt.Fprintln(&b, "Message Version")
-	fmt.Fprintf(&b, "%s", m.header)
-	fmt.Fprintf(&b, "%s", m.payload)
+	fmt.Fprintf(&b, "%s", m.Header)
+	fmt.Fprintf(&b, "%s", m.Payload)
 	return b.String()
 }
 
 func (p msgVersionPayload) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "  Payload\n")
-	fmt.Fprintf(&b, "    %-14s%d\n", "Version:", p.version)
-	fmt.Fprintf(&b, "    %-14s%s\n", "Services:", p.services)
-	fmt.Fprintf(&b, "    %-14s%s\n", "Timestamp:", p.timestamp)
-	fmt.Fprintf(&b, "    %-14s%s\n", "Address To:", p.addrTo)
-	fmt.Fprintf(&b, "    %-14s%s\n", "Address From:", p.addrFrom)
-	fmt.Fprintf(&b, "    %-14s%d\n", "Nonce:", p.nonce)
-	fmt.Fprintf(&b, "    %-14s%s\n", "User Agent:", p.userAgent)
-	fmt.Fprintf(&b, "    %-14s%d\n", "Start Height:", p.startHeight)
-	fmt.Fprintf(&b, "    %-14s%t\n", "Relay:", p.relay)
+	fmt.Fprintf(&b, "    %-14s%d\n", "Version:", p.Version)
+	fmt.Fprintf(&b, "    %-14s%s\n", "Services:", p.Services)
+	fmt.Fprintf(&b, "    %-14s%s\n", "Timestamp:", p.Timestamp)
+	fmt.Fprintf(&b, "    %-14s%s\n", "Address To:", p.AddrYou)
+	fmt.Fprintf(&b, "    %-14s%s\n", "Address From:", p.AddrMe)
+	fmt.Fprintf(&b, "    %-14s%X\n", "Nonce:", p.Nonce)
+	fmt.Fprintf(&b, "    %-14s%s\n", "User Agent:", p.UserAgent)
+	fmt.Fprintf(&b, "    %-14s%d\n", "Start Height:", p.StartHeight)
+	fmt.Fprintf(&b, "    %-14s%t\n", "Relay:", p.Relay)
 	return b.String()
 }
 
-func NewMsgVersion() *msgVersion {
-	m := &msgVersion{
-		header: msgHeader{
-			magic:   MainNet,
-			command: cmdVersion,
+// NewMsgVersion creates a new version message.
+func NewMsgVersion(to IP) *MsgVersion {
+	m := &MsgVersion{
+		Header: msgHeader{
+			Magic:   mainNet.magic,
+			Command: cmdVersion,
 		},
-		payload: msgVersionPayload{
-			version:     ProtocolVersion,
-			services:    SFNetwork,
-			timestamp:   Now(),
-			addrTo:      NetworkAddress{}, // TODO
-			addrFrom:    NetworkAddress{}, // TODO
-			nonce:       rand.Uint64(),    // TODO:save nonce
-			userAgent:   VarString{},      // TODO
-			startHeight: 0,
-			relay:       false,
-		},
+		Payload: msgVersionPayload{
+			Version:   protocolVersion,
+			Services:  SfNetwork,
+			Timestamp: now(),
+			AddrYou: NetworkAddress{
+				Service: SfNetwork,
+				Ip:      to,
+				Port:    mainNet.port,
+			},
+			AddrMe: NetworkAddress{
+				Service: SfNetwork,
+				Ip:      myPublicIPAddress(),
+				Port:    mainNet.port,
+			},
+			Nonce:       rand.Uint64(),
+			UserAgent:   toVarString(userAgent),
+			StartHeight: getLatestHeight(), // should probably be zero
+			Relay:       true},
 	}
-	m.header.length = msgLength(m)
-	m.header.checksum = msgChecksum(m)
+	// TODO: encode payload only once
+	m.Header.Length = msgLength(m)
+	m.Header.Checksum = msgChecksum(m)
 	return m
 }

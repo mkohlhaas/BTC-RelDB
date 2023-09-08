@@ -1,16 +1,14 @@
 package protocol
 
-import (
-	"time"
-)
+import "time"
 
-type Timestamp int64
+type timestamp int64
 
-func (t Timestamp) String() string {
-	t1 := time.Unix(int64(t), 0)
-	return t1.Format(time.UnixDate)
+func (ts timestamp) String() string {
+	t := time.Unix(int64(ts), 0)
+	return t.Format("02-Jan-06 15:04 MST")
 }
 
-func Now() Timestamp {
-	return Timestamp(time.Now().Unix())
+func now() timestamp {
+	return timestamp(time.Now().Unix())
 }

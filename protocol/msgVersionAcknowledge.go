@@ -5,32 +5,35 @@ import (
 	"strings"
 )
 
-type msgVersionAck struct {
-	header  msgHeader
-	payload struct{}
+type emtpyPayload struct{}
+
+// MsgVersionAck = Message Version Acknowledge
+type MsgVersionAck struct {
+	Header  msgHeader
+	payload emtpyPayload
 }
 
-func NewMsgVersionAck() *msgVersionAck {
-	m := &msgVersionAck{
-		header: msgHeader{
-			magic:   MainNet,
-			command: cmdVersionAck,
-			length:  0,
+// NewMsgVersionAck creates a new version achnowledge message.
+func NewMsgVersionAck() *MsgVersionAck {
+	m := &MsgVersionAck{
+		Header: msgHeader{
+			Magic:   mainNet.magic,
+			Command: cmdVersionAck,
+			Length:  0,
 		},
-		payload: struct{}{},
+		payload: emtpyPayload{},
 	}
-	m.header.checksum = msgChecksum(m)
+	m.Header.Checksum = msgChecksum(m)
 	return m
 }
 
-func (m *msgVersionAck) String() string {
+func (m *MsgVersionAck) String() string {
 	var b strings.Builder
-	fmt.Fprintln(&b, "Message Version Acknowledge")
-	fmt.Fprintf(&b, "%s", m.header)
-	fmt.Fprintf(&b, "  No Payload\n")
+	fmt.Fprintf(&b, "Message Version Acknowledge\n")
+	fmt.Fprintf(&b, "%s", m.Header)
 	return b.String()
 }
 
-func (m *msgVersionAck) pLoad() any {
+func (m *MsgVersionAck) pLoad() any {
 	return m.payload
 }
