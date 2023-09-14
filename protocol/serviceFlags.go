@@ -2,8 +2,12 @@ package protocol
 
 import "strings"
 
+// ServiceFlags define the capabilities of a Bitcoin's node.
 type ServiceFlags uint64
 
+type ServiceFlags2 VarInt
+
+// ServiceFlags of a Bitcoin node.
 const (
 	SfNetwork ServiceFlags = 1 << iota
 	SfGetutxo

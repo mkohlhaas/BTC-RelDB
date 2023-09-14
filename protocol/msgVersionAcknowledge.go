@@ -9,21 +9,21 @@ type emtpyPayload struct{}
 
 // MsgVersionAck = Message Version Acknowledge
 type MsgVersionAck struct {
-	Header  msgHeader
+	Header  MsgHeader
 	payload emtpyPayload
 }
 
 // NewMsgVersionAck creates a new version achnowledge message.
 func NewMsgVersionAck() *MsgVersionAck {
 	m := &MsgVersionAck{
-		Header: msgHeader{
+		Header: MsgHeader{
 			Magic:   mainNet.magic,
 			Command: cmdVersionAck,
 			Length:  0,
 		},
 		payload: emtpyPayload{},
 	}
-	m.Header.Checksum = msgChecksum(m)
+	m.Header.Length, m.Header.Checksum = msgLenAndChecksum(m)
 	return m
 }
 

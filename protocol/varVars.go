@@ -5,7 +5,7 @@ import (
 )
 
 type varString struct {
-	Varint varInt
+	Varint VarInt
 	Str    string
 }
 
@@ -13,16 +13,18 @@ func (v varString) String() string {
 	return string(v.Str)
 }
 
-func toVarString(s string) (res varString) {
+// VarString is Bitcoin's variable string definition.
+func VarString(s string) (res varString) {
 	return varString{
-		Varint: varInt(len(s)),
+		Varint: VarInt(len(s)),
 		Str:    s,
 	}
 }
 
-type varInt uint64
+// VarInt is Bitcoin's variable integer definition.
+type VarInt uint64
 
-func (v *varInt) String() string {
+func (v *VarInt) String() string {
 	return fmt.Sprintf("%d", v)
 }
 

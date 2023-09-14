@@ -2,36 +2,70 @@
 package main
 
 import (
+	"fmt"
+	"io"
+	"net"
+	"os"
+
 	p "github.com/mkohlhaas/btcreldb/protocol"
 )
 
-// TODO: ENCODING varInt and varString!!!
+// Client struct
+type Client struct {
+	Host string
+	Port int
+}
+
+// TODO: - send version messages to DNS seeds
+//       - add wtxidrelay messages
+//       - add sendaddrv2 messages
+//       - add ping and pong messages
+//       - add addr and getaddr messages??? (possibly obsolete)
+//       - check checksums
+//       - check format of IPv6 address
 
 func main() {
-	// m1 := p.NewMsgVersionAck()
-	// fmt.Println(m1)
-	// p.Encode(m1)
+	client := &Client{
+		Host: os.Args[1],
+		Port: 8333,
+	}
+	client.Start()
+}
 
-	// Message Version Acknowledge
-	//   Message Header
-	//     Bitcoin Network:  Main Network
-	//     Command:          verack
-	//     Payload Length:   0
-	//     Payload Checksum: 5DF6E0E2
+// Start TCPClient
+func (c *Client) Start() {
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", c.Host, c.Port)) // establish TCP connection
+	p.Chk(err)                                                         // check error
+	defer conn.Close()                                                 // close connection when we are done
 
-	m2 := p.NewMsgVersion(p.IPAddr("34.45.56.231"))
-	// fmt.Println(m2)
-	p.Encode(m2)
+	m2 := p.NewMsgVersion(p.IPAddr(c.Host)) // create version message
+	e := p.Encode(m2)                       // encode to Bitcoin's network protocol
+	conn.Write(e)                           // write out the message
 
-	// var m3 p.MsgVersionAck
-	// x, _ := hex.DecodeString("F9BEB4D976657261636B000000000000000000005DF6E0E2")
-	// p.Read(&m3, x)
-	// fmt.Println(m3)
-
-	// var m4 p.MsgVersion
-	// x, _ := hex.DecodeString("F9BEB4D976657273696F6E000000000066000000FB09A3B4801101000100000000000000B9E60165000000000100000000000000E7382D22FFFF00000000000000000000208D01000000000000005B03DF2EFFFF00000000000000000000208D9EE4828EF2877C9C102F62746372656C64623A302E302E312F42520C0001")
-	// p.Read(x, &m4)
-	// fmt.Println(m4)
-	// fmt.Println(m4.Header.Magic)
-	// fmt.Println(m4.Payload.Timestamp)
+	for {
+		msgHeaderBuf := make([]byte, p.MsgHeaderSize)
+		_, err := io.ReadFull(conn, msgHeaderBuf)                      // read header
+		p.Chk(err)                                                     // check errror
+		msgHeader := new(p.MsgHeader)                                  // create new message header
+		p.Decode(msgHeaderBuf, msgHeader)                              // decode into header
+		msgPayloadBuf := make([]byte, msgHeader.Length)                //
+		_, err = io.ReadFull(conn, msgPayloadBuf)                      // read payload
+		p.Chk(err)                                                     // check errror
+		msg := append(msgHeaderBuf, msgPayloadBuf...)                  // concat header and payload
+		command := string(p.RemoveTrailingZeros(msgHeader.Command[:])) // switch on message command
+		switch command {
+		case "version":
+			fmt.Println("Version message")
+			msgVersion := new(p.MsgVersion)
+			p.Decode(msg, msgVersion)
+			fmt.Println(msgVersion)
+		case "verack":
+			fmt.Println("Version Acknowledge message")
+			msgVersionAck := new(p.MsgVersionAck)
+			p.Decode(msg, msgVersionAck)
+			fmt.Println(msgVersionAck)
+		default:
+			fmt.Println("Don't know this command:", command)
+		}
+	}
 }

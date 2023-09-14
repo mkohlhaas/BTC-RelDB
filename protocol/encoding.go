@@ -3,14 +3,13 @@ package protocol
 import (
 	"errors"
 	"fmt"
-	"io"
 	"reflect"
 )
 
 // Decode interface for all messages
-type Decode interface {
-	decode(io.Reader)
-}
+// type Decode interface {
+// 	decode(io.Reader)
+// }
 
 type coder struct {
 	buf    []byte
@@ -22,11 +21,9 @@ type encoder coder
 
 func sizeof(v reflect.Value) (sum int, err error) {
 	t := v.Type()
-	fmt.Println(v.Kind(), " ", t, " ", t.Kind(), " ", t.Name())
 	switch v.Kind() {
 	case reflect.Array, reflect.Slice:
 		sum = v.Len()
-		fmt.Println("  Sum value:", sum)
 	case reflect.Struct:
 		for i, n := 0, t.NumField(); i < n; i++ {
 			s, err := sizeof(v.Field(i))
@@ -35,9 +32,9 @@ func sizeof(v reflect.Value) (sum int, err error) {
 			}
 			sum += s
 		}
-		fmt.Println("  Sum struct:", sum)
 	case reflect.Uint64:
-		if t.Name() == "varInt" {
+		switch t.Name() {
+		case "VarInt":
 			v1 := v.Uint()
 			switch {
 			case v1 <= 0xFC:
@@ -49,34 +46,27 @@ func sizeof(v reflect.Value) (sum int, err error) {
 			case v1 <= 0xFFFFFFFFFFFFFFFF:
 				sum += 9
 			}
-			fmt.Println("  Sum varint:", sum)
-		} else {
+		default:
 			sum = int(t.Size())
-			fmt.Println("  Sum uint64:", sum)
 		}
 	default:
 		sum = int(t.Size())
-		fmt.Println("  Sum value:", sum)
 	}
 	return
 }
 
 func (e *encoder) value(v reflect.Value) {
-	fmt.Println("offset encoder: ", e.offset)
 	t := v.Type()
-	fmt.Println(v.Kind(), " ", t, " ", t.Kind(), " ", t.Name())
 	switch v.Kind() {
 	case reflect.Array, reflect.Slice:
 		l := v.Len()
 		switch t.Name() {
 		case "IP": // IP is big-endian (so-called network order)
 			for i := l - 1; i >= 0; i-- {
-				fmt.Println("index ", i)
 				e.value(v.Index(i))
 			}
 		default: // is little-endian
 			for i := 0; i < l; i++ {
-				fmt.Println("index ", i)
 				e.value(v.Index(i))
 			}
 		}
@@ -111,18 +101,42 @@ func (e *encoder) value(v reflect.Value) {
 	case reflect.Int64:
 		e.PutInt64(v)
 	case reflect.Uint64:
-		// TODO: sub-case varint
-		e.PutUInt64(v)
+		switch t.Name() {
+		case "VarInt":
+			val := v.Uint()
+			switch {
+			case val <= 0xFC:
+				e.PutUInt8(v)
+			case val <= 0xFFFF:
+				e.buf[e.offset] = byte(0xFD)
+				e.offset++
+				e.PutUInt16(v)
+			case val <= 0xFFFFFFFF:
+				e.buf[e.offset] = byte(0xFE)
+				e.offset++
+				e.PutUInt32(v)
+			case val <= 0xFFFFFFFFFFFFFFFF:
+				e.buf[e.offset] = byte(0xFF)
+				e.offset++
+				e.PutUInt64(v)
+			}
+		default:
+			e.PutUInt64(v)
+		}
 	case reflect.String:
-		fmt.Println("VarString not implemented yet: ", t.Name())
-		// e.PutString(v)
+		e.PutString(v.String())
 	default:
 		fmt.Println("not implemented: ", t.Name())
 	}
 }
 
+func (e *encoder) PutString(s string) {
+	n := uint64(len(s))
+	copy(e.buf[e.offset:e.offset+n], s)
+	e.offset += n
+}
+
 func (e *encoder) PutBool(v reflect.Value) {
-	fmt.Println("PutBool")
 	val := v.Bool()
 	if val {
 		e.buf[e.offset] = 1
@@ -133,14 +147,12 @@ func (e *encoder) PutBool(v reflect.Value) {
 }
 
 func (e *encoder) PutUInt8(v reflect.Value) {
-	fmt.Println("PutUInt8")
 	val := v.Uint()
 	e.buf[e.offset] = byte(val)
 	e.offset++
 }
 
 func (e *encoder) PutPort(v reflect.Value) {
-	fmt.Println("PutPort")
 	val := v.Uint()
 	e.buf[e.offset+0] = byte(val >> 8)
 	e.buf[e.offset+1] = byte(val)
@@ -148,7 +160,6 @@ func (e *encoder) PutPort(v reflect.Value) {
 }
 
 func (e *encoder) PutUInt16(v reflect.Value) {
-	fmt.Println("PutUInt16")
 	val := v.Uint()
 	e.buf[e.offset+0] = byte(val)
 	e.buf[e.offset+1] = byte(val >> 8)
@@ -156,7 +167,6 @@ func (e *encoder) PutUInt16(v reflect.Value) {
 }
 
 func (e *encoder) PutInt32(v reflect.Value) {
-	fmt.Println("PutInt32")
 	val := v.Int()
 	e.buf[e.offset+0] = byte(val)
 	e.buf[e.offset+1] = byte(val >> 8)
@@ -166,7 +176,6 @@ func (e *encoder) PutInt32(v reflect.Value) {
 }
 
 func (e *encoder) PutChecksum(v reflect.Value) {
-	fmt.Println("PutChecksum")
 	val := v.Uint()
 	e.buf[e.offset+0] = byte(val >> 24)
 	e.buf[e.offset+1] = byte(val >> 16)
@@ -176,7 +185,6 @@ func (e *encoder) PutChecksum(v reflect.Value) {
 }
 
 func (e *encoder) PutUInt32(v reflect.Value) {
-	fmt.Println("PutUInt32")
 	val := v.Uint()
 	e.buf[e.offset+0] = byte(val)
 	e.buf[e.offset+1] = byte(val >> 8)
@@ -186,7 +194,6 @@ func (e *encoder) PutUInt32(v reflect.Value) {
 }
 
 func (e *encoder) PutInt64(v reflect.Value) {
-	fmt.Println("PutInt64")
 	val := v.Int()
 	e.buf[e.offset+0] = byte(val)
 	e.buf[e.offset+1] = byte(val >> 8)
@@ -200,7 +207,6 @@ func (e *encoder) PutInt64(v reflect.Value) {
 }
 
 func (e *encoder) PutUInt64(v reflect.Value) {
-	fmt.Println("PutUInt64")
 	val := v.Uint()
 	e.buf[e.offset+0] = byte(val)
 	e.buf[e.offset+1] = byte(val >> 8)
@@ -216,21 +222,17 @@ func (e *encoder) PutUInt64(v reflect.Value) {
 var varint uint64
 
 func (d *decoder) value(v reflect.Value) {
-	fmt.Println("offset decoder: ", d.offset)
 	t := v.Type()
-	fmt.Println(v.Kind(), " ", t, " ", t.Kind(), " ", t.Name())
 	switch v.Kind() {
 	case reflect.Array, reflect.Slice:
 		l := v.Len()
 		switch t.Name() {
 		case "IP": // IP is big-endian (so-called network order)
 			for i := l - 1; i >= 0; i-- {
-				fmt.Println("index ", i)
 				d.value(v.Index(i))
 			}
 		default: // is little-endian
 			for i := 0; i < l; i++ {
-				fmt.Println("index ", i)
 				d.value(v.Index(i))
 			}
 		}
@@ -243,30 +245,29 @@ func (d *decoder) value(v reflect.Value) {
 			}
 		}
 	case reflect.Bool:
-		SetBool(v, d.bool())
+		setBool(v, d.bool())
 	case reflect.Uint8:
-		SetUint8(v, d.uint8())
+		setUint8(v, d.uint8())
 	case reflect.Uint16:
 		switch t.Name() {
 		case "port": // port is big-endian (so-called network order)
-			SetUint16(v, d.uint16_be())
+			setUint16(v, d.uint16Be())
 		default: // is little-endian
-			SetUint16(v, d.uint16())
+			setUint16(v, d.uint16())
 		}
 	case reflect.Int32:
-		SetInt32(v, d.int32())
+		setInt32(v, d.int32())
 	case reflect.Uint32:
 		switch t.Name() {
 		case "checksum": // checksum is big-endian (so-called internal byte order)
-			SetUint32(v, d.uint32_be())
+			setUint32(v, d.uint32Be())
 		default:
-			SetUint32(v, d.uint32())
+			setUint32(v, d.uint32())
 		}
 	case reflect.Int64:
-		SetInt64(v, d.int64())
+		setInt64(v, d.int64())
 	case reflect.Uint64:
-		if t.Name() == "varInt" {
-			fmt.Println("In Varint!")
+		if t.Name() == "VarInt" {
 			x := uint8(d.buf[d.offset])
 			d.offset++
 			switch x {
@@ -283,12 +284,10 @@ func (d *decoder) value(v reflect.Value) {
 				varint = uint64(x)
 				v.SetUint(varint)
 			}
-			fmt.Println("varint: ", varint)
 		} else {
-			SetUint64(v, d.uint64())
+			setUint64(v, d.uint64())
 		}
 	case reflect.String:
-		fmt.Println("varint: ", varint)
 		v.SetString(string(d.buf[d.offset : d.offset+varint]))
 		d.offset += varint
 	default:
@@ -296,31 +295,31 @@ func (d *decoder) value(v reflect.Value) {
 	}
 }
 
-func SetBool(v reflect.Value, x bool) {
+func setBool(v reflect.Value, x bool) {
 	v.SetBool(x)
 }
 
-func SetUint8(v reflect.Value, x uint8) {
+func setUint8(v reflect.Value, x uint8) {
 	v.SetUint(uint64(x))
 }
 
-func SetUint16(v reflect.Value, x uint16) {
+func setUint16(v reflect.Value, x uint16) {
 	v.SetUint(uint64(x))
 }
 
-func SetUint32(v reflect.Value, x uint32) {
+func setUint32(v reflect.Value, x uint32) {
 	v.SetUint(uint64(x))
 }
 
-func SetInt32(v reflect.Value, x int32) {
+func setInt32(v reflect.Value, x int32) {
 	v.SetInt(int64(x))
 }
 
-func SetInt64(v reflect.Value, x int64) {
+func setInt64(v reflect.Value, x int64) {
 	v.SetInt(int64(x))
 }
 
-func SetUint64(v reflect.Value, x uint64) {
+func setUint64(v reflect.Value, x uint64) {
 	v.SetUint(uint64(x))
 }
 
@@ -342,13 +341,13 @@ func (d *decoder) uint16() uint16 {
 	return uint16(b[0]) | uint16(b[1])<<8
 }
 
-func (d *decoder) uint16_be() uint16 {
+func (d *decoder) uint16Be() uint16 {
 	b := d.buf[d.offset : d.offset+2]
 	d.offset += 2
 	return uint16(b[1]) | uint16(b[0])<<8
 }
 
-func (d *decoder) uint32_be() uint32 {
+func (d *decoder) uint32Be() uint32 {
 	b := d.buf[d.offset : d.offset+4]
 	d.offset += 4
 	return uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24
@@ -386,7 +385,7 @@ func Write(msg any) ([]byte, error) {
 	if err != nil {
 		return nil, errors.New("size of some values could not be determined " + reflect.TypeOf(msg).String())
 	}
-	fmt.Println("Size: ", size)
+	// fmt.Println("/////////// Size: ", size, " ", v.Type().Name(), " //////////////////////////////////\n")
 	buf := make([]byte, size)
 	e := &encoder{buf: buf}
 	e.value(v)
@@ -396,15 +395,14 @@ func Write(msg any) ([]byte, error) {
 	return buf, nil
 }
 
-// func Read(r io.Reader, data any) error {
-func Read(buf []byte, data any) error {
-	// Fallback to reflect-based decoding.
-	v := reflect.Indirect(reflect.ValueOf(data))
-	// v := reflect.ValueOf(data)
+// Read reads in a Bitcoin message.
+func Read(buf []byte, msg any) error {
+	v := reflect.Indirect(reflect.ValueOf(msg))
 	// size, err := sizeof(v)
 	// if err != nil {
-	// 	return errors.New("invalid type " + reflect.TypeOf(msg).String())
+	// 	return errors.New("size of some values could not be determined " + reflect.TypeOf(msg).String())
 	// }
+	// fmt.Println("/////////// Read Size: ", size, " ", v.Type().Name(), " ///////////////////////////////\n")
 	d := &decoder{buf: buf}
 	d.value(v)
 	return nil

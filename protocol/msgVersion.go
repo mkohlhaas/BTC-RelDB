@@ -8,7 +8,7 @@ import (
 
 // MsgVersion = Message Version
 type MsgVersion struct {
-	Header  msgHeader
+	Header  MsgHeader
 	Payload msgVersionPayload
 }
 
@@ -54,7 +54,7 @@ func (p msgVersionPayload) String() string {
 // NewMsgVersion creates a new version message.
 func NewMsgVersion(to IP) *MsgVersion {
 	m := &MsgVersion{
-		Header: msgHeader{
+		Header: MsgHeader{
 			Magic:   mainNet.magic,
 			Command: cmdVersion,
 		},
@@ -63,22 +63,20 @@ func NewMsgVersion(to IP) *MsgVersion {
 			Services:  SfNetwork,
 			Timestamp: now(),
 			AddrYou: NetworkAddress{
-				Service: SfNetwork,
-				Ip:      to,
-				Port:    mainNet.port,
+				Services: SfNetwork,
+				IP:       to,
+				Port:     mainNet.port,
 			},
 			AddrMe: NetworkAddress{
-				Service: SfNetwork,
-				Ip:      myPublicIPAddress(),
-				Port:    mainNet.port,
+				Services: SfNetwork,
+				IP:       myPublicIPAddress(),
+				Port:     mainNet.port,
 			},
 			Nonce:       rand.Uint64(),
-			UserAgent:   toVarString(userAgent),
-			StartHeight: getLatestHeight(), // should probably be zero
-			Relay:       true},
+			UserAgent:   VarString(userAgent),
+			StartHeight: getLatestHeight(), // TODO: should probably be zero
+			Relay:       false},
 	}
-	// TODO: encode payload only once
-	m.Header.Length = msgLength(m)
-	m.Header.Checksum = msgChecksum(m)
+	m.Header.Length, m.Header.Checksum = msgLenAndChecksum(m)
 	return m
 }
